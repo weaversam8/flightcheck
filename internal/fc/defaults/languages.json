@@ -1,0 +1,13 @@
+{
+  "elixir": {
+    "extensions": [".ex", ".exs", ".heex", ".eex", ".leex"],
+    "blocks_file": "elixir.md",
+    "comments": {
+      "default": ["#", ""],
+      ".heex": ["<%!--", "--%>"],
+      ".eex": ["<%#", "%>"],
+      ".leex": ["<%#", "%>"]
+    },
+    "skip_blocks": ["pattern_matching", "pipelines"]
+  }
+}
