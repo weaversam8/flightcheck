@@ -9,5 +9,17 @@
       ".leex": ["<%#", "%>"]
     },
     "skip_blocks": ["pattern_matching", "pipelines"]
+  },
+  "go": {
+    "extensions": [".go"],
+    "blocks_file": "go.md",
+    "comments": { "default": ["//", ""] },
+    "skip_blocks": []
+  },
+  "shell": {
+    "extensions": [".sh", ".bash"],
+    "blocks_file": "shell.md",
+    "comments": { "default": ["#", ""] },
+    "skip_blocks": ["quoting"]
   }
 }

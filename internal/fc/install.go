@@ -120,7 +120,15 @@ func seedDefaults(force bool) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := write(LanguagesPath(), langs); err != nil {
+	if !force && fileExists(LanguagesPath()) {
+		added, err := mergeLanguages(LanguagesPath(), langs)
+		if err != nil {
+			return nil, err
+		}
+		if len(added) > 0 {
+			wrote = append(wrote, fmt.Sprintf("%s (added %s)", LanguagesPath(), strings.Join(added, ", ")))
+		}
+	} else if err := write(LanguagesPath(), langs); err != nil {
 		return nil, err
 	}
 	err = fs.WalkDir(defaultsFS, "defaults/blocks", func(p string, d fs.DirEntry, err error) error {
@@ -134,6 +142,39 @@ func seedDefaults(force bool) ([]string, error) {
 		return write(filepath.Join(BlocksDir(), filepath.Base(p)), data)
 	})
 	return wrote, err
+}
+
+// mergeLanguages appends default languages missing from an existing
+// languages.json, leaving the user's entries alone. It returns the names it
+// added, and doesn't rewrite the file if there were none.
+func mergeLanguages(path string, defaults []byte) ([]string, error) {
+	orig, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	have, err := parseObject(orig)
+	if err != nil {
+		return nil, fmt.Errorf("parse %s: %w", path, err)
+	}
+	want, err := parseObject(defaults)
+	if err != nil {
+		return nil, err
+	}
+	var added []string
+	for _, p := range want {
+		if getKey(have, p.key) == nil {
+			have = append(have, p)
+			added = append(added, p.key)
+		}
+	}
+	if len(added) == 0 {
+		return nil, nil
+	}
+	out, err := encodeObject(have)
+	if err != nil {
+		return nil, err
+	}
+	return added, os.WriteFile(path, out, 0o644)
 }
 
 // ---- settings.json editing ----

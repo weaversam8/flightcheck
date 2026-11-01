@@ -54,7 +54,9 @@ for a system-wide install, and `make uninstall` to remove it.
 
 `flightcheck install` adds three hooks to `~/.claude/settings.json` (it
 keeps your existing settings and backs the file up first) and seeds
-`~/.flightcheck/`. Restart open Claude Code sessions afterward. Use
+`~/.flightcheck/`. Re-running it never overwrites your config or blocks
+files (unless you pass `--force`), but it does add any new built-in
+languages to `languages.json`. Restart open Claude Code sessions afterward. Use
 `--scope project` to write `.claude/settings.json` in the current repo
 instead; everyone working in that repo will then need flightcheck installed.
 

@@ -128,29 +128,86 @@ func TestSettingsMergePreservesOrderAndOtherHooks(t *testing.T) {
 	}
 }
 
-func TestBlocksFileParses(t *testing.T) {
-	b, err := defaultsFS.ReadFile("defaults/blocks/elixir.md")
+func TestBlocksFilesParse(t *testing.T) {
+	want := map[string]int{"elixir": 37, "go": 29, "shell": 25}
+	b, err := defaultsFS.ReadFile("defaults/languages.json")
 	if err != nil {
 		t.Fatal(err)
 	}
-	p := filepath.Join(t.TempDir(), "elixir.md")
-	os.WriteFile(p, b, 0o644)
-	blocks, err := LoadBlocks(p)
+	var langs Languages
+	if err := json.Unmarshal(b, &langs); err != nil {
+		t.Fatal(err)
+	}
+	if len(langs) != len(want) {
+		t.Fatalf("want %d languages, got %d", len(want), len(langs))
+	}
+	for name, l := range langs {
+		b, err := defaultsFS.ReadFile("defaults/blocks/" + l.BlocksFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		p := filepath.Join(t.TempDir(), l.BlocksFile)
+		os.WriteFile(p, b, 0o644)
+		blocks, err := LoadBlocks(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(blocks) != want[name] {
+			t.Fatalf("want %d %s blocks, got %d", want[name], name, len(blocks))
+		}
+		seen := map[string]bool{}
+		for _, bl := range blocks {
+			if bl.ID == "" || bl.Title == "" || bl.Description == "" || strings.Contains(bl.ID, " ") {
+				t.Fatalf("%s: bad block %+v", name, bl)
+			}
+			if seen[bl.ID] {
+				t.Fatalf("%s: duplicate id %s", name, bl.ID)
+			}
+			seen[bl.ID] = true
+		}
+		for _, id := range l.SkipBlocks {
+			if !seen[id] {
+				t.Fatalf("%s: skip_blocks names unknown block %s", name, id)
+			}
+		}
+	}
+}
+
+func TestSeedMergesMissingLanguages(t *testing.T) {
+	t.Setenv("FLIGHTCHECK_HOME", t.TempDir())
+	if err := EnsureDirs(); err != nil {
+		t.Fatal(err)
+	}
+	custom := `{"elixir": {"extensions": [".ex"], "blocks_file": "mine.md"}}`
+	os.WriteFile(LanguagesPath(), []byte(custom), 0o644)
+
+	wrote, err := seedDefaults(false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(blocks) != 37 {
-		t.Fatalf("want 37 elixir blocks, got %d", len(blocks))
+	if !strings.Contains(strings.Join(wrote, "\n"), "(added go, shell)") {
+		t.Fatalf("expected go and shell to be reported as added, got %v", wrote)
 	}
-	seen := map[string]bool{}
-	for _, bl := range blocks {
-		if bl.ID == "" || bl.Title == "" || bl.Description == "" || strings.Contains(bl.ID, " ") {
-			t.Fatalf("bad block %+v", bl)
-		}
-		if seen[bl.ID] {
-			t.Fatalf("duplicate id %s", bl.ID)
-		}
-		seen[bl.ID] = true
+	langs, err := LoadLanguages()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if langs["elixir"].BlocksFile != "mine.md" || len(langs["elixir"].Extensions) != 1 {
+		t.Fatalf("merge overwrote the user's elixir entry: %+v", langs["elixir"])
+	}
+	if langs["go"].BlocksFile != "go.md" || langs["shell"].BlocksFile != "shell.md" {
+		t.Fatalf("missing merged languages: %+v", langs)
+	}
+
+	// Nothing left to add: the file isn't touched again.
+	before, _ := os.ReadFile(LanguagesPath())
+	wrote, err = seedDefaults(false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	after, _ := os.ReadFile(LanguagesPath())
+	if len(wrote) != 0 || !bytes.Equal(before, after) {
+		t.Fatalf("second seed changed things: %v", wrote)
 	}
 }
 

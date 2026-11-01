@@ -1,0 +1,10 @@
+# TODO
+
+- [ ] per-language schedules
+- [x] blocks for golang and shell
+- [ ] install sanity checks (is `claude` on your path)
+- [ ] short "reason" field when the model does not match for an edit
+- [ ] command for claude to see why flightcheck didn't fire
+- [ ] debug tracing for exact session tracking?
+- [ ] note that auto mode classifier blocked the attempt to grade the file
+- [ ] what counts as a "turn"? auto mode is making many edits but the turn counter is not going up consistently. is it assistant outputting text instead of tool calls?
