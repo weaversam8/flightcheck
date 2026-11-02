@@ -37,7 +37,7 @@ brew install --HEAD weaversam8/flightcheck/flightcheck   # drop --HEAD once a re
 flightcheck install
 ```
 
-**Go** (1.22+):
+**Go** (1.24+):
 
 ```sh
 go install github.com/weaversam8/flightcheck/cmd/flchk@latest
