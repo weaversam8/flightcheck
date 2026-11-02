@@ -1,9 +1,9 @@
 class Flightcheck < Formula
   desc "Keep hand-coding skills current while working with Claude Code"
   homepage "https://github.com/weaversam8/flightcheck"
+  url "https://github.com/weaversam8/flightcheck/archive/refs/tags/v0.1.1.tar.gz"
+  sha256 "8c6dc401e57328bda7cb2951987b7784fbc2326fa89ad4c8176b0e8a37e66ad1"
   # scripts/release.sh adds `url` and `sha256` here for each tagged release.
-  url "https://github.com/weaversam8/flightcheck/archive/refs/tags/v0.1.0.tar.gz"
-  sha256 "984ff8b95713ab7495de63a50e89bc3e52bcb32e1164af26a05d653d13211a7a"
   license "MIT"
   head "https://github.com/weaversam8/flightcheck.git", branch: "main"
 
