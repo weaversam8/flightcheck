@@ -1,4 +1,10 @@
 {
+  "ansible": {
+    "extensions": [".yml", ".yaml"],
+    "blocks_file": "ansible.md",
+    "comments": { "default": ["#", ""] },
+    "skip_blocks": ["tasks_modules"]
+  },
   "elixir": {
     "extensions": [".ex", ".exs", ".heex", ".eex", ".leex"],
     "blocks_file": "elixir.md",
@@ -10,9 +16,21 @@
     },
     "skip_blocks": ["pattern_matching", "pipelines"]
   },
+  "erlang": {
+    "extensions": [".erl", ".hrl", ".escript"],
+    "blocks_file": "erlang.md",
+    "comments": { "default": ["%%", ""] },
+    "skip_blocks": ["pattern_matching"]
+  },
   "go": {
     "extensions": [".go"],
     "blocks_file": "go.md",
+    "comments": { "default": ["//", ""] },
+    "skip_blocks": []
+  },
+  "rust": {
+    "extensions": [".rs"],
+    "blocks_file": "rust.md",
     "comments": { "default": ["//", ""] },
     "skip_blocks": []
   },

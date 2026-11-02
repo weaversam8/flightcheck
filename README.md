@@ -180,20 +180,20 @@ Add an entry to `~/.flightcheck/languages.json` and a blocks file in
 `~/.flightcheck/blocks/`:
 
 ```json
-"rust": {
-  "extensions": [".rs"],
-  "blocks_file": "rust.md",
-  "comments": { "default": ["//", ""] },
+"python": {
+  "extensions": [".py"],
+  "blocks_file": "python.md",
+  "comments": { "default": ["#", ""] },
   "skip_blocks": []
 }
 ```
 
 ```markdown
-## ownership: Ownership and borrowing
-Moving vs borrowing values, `&`/`&mut` parameters, fixing borrow-checker errors.
+## comprehensions: Comprehensions
+List, dict, and set comprehensions, generator expressions, nested `for` clauses.
 
-## error_propagation: Error propagation
-Returning `Result`, the `?` operator, `map_err`, custom error types.
+## context_managers: Context managers
+`with` blocks, writing `__enter__`/`__exit__`, `contextlib.contextmanager`.
 ```
 
 Block ids are what the ledger tracks, so renaming an id resets its schedule.
@@ -217,6 +217,12 @@ flightcheck hook pre-tool-use|post-tool-use|user-prompt-submit   # run by Claude
   turned into a rep, though writes to a file with a pending rep are blocked.
 - **The classifier is a small model.** It can mislabel. Grading asks the
   agent to confirm which blocks your code actually exercised.
+- **Languages are matched by file extension only.** Ansible claims every
+  `.yml` and `.yaml` file, so other YAML (Kubernetes, CI config) also goes to
+  the classifier when the rep gate is open. Its blocks are worded so that YAML
+  shouldn't match, but it can. To opt out, set `ansible`'s `extensions` to
+  `[]` in `languages.json`. Don't delete the entry, because `install` adds
+  missing languages back.
 - **It fails open.** Any internal error is logged to
   `~/.flightcheck/errors.log` and the edit proceeds untouched.
 

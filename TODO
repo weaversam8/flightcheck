@@ -2,6 +2,8 @@
 
 - [ ] per-language schedules
 - [x] blocks for golang and shell
+- [x] blocks for erlang, rust, and ansible
+- [ ] more robust file/language handling: `ForFile` only looks at the extension, so ansible has to claim every .yml/.yaml file (k8s, CI config, etc). detect by path or content (`roles/`, `playbooks/`, `hosts:` + `tasks:`) so non-ansible yaml doesn't cost a classifier call or risk a false rep
 - [ ] install sanity checks (is `claude` on your path)
 - [ ] short "reason" field when the model does not match for an edit
 - [ ] command for claude to see why flightcheck didn't fire

@@ -129,7 +129,7 @@ func TestSettingsMergePreservesOrderAndOtherHooks(t *testing.T) {
 }
 
 func TestBlocksFilesParse(t *testing.T) {
-	want := map[string]int{"elixir": 37, "go": 29, "shell": 25}
+	want := map[string]int{"ansible": 30, "elixir": 37, "erlang": 33, "go": 29, "rust": 31, "shell": 25}
 	b, err := defaultsFS.ReadFile("defaults/languages.json")
 	if err != nil {
 		t.Fatal(err)
@@ -185,8 +185,8 @@ func TestSeedMergesMissingLanguages(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(strings.Join(wrote, "\n"), "(added go, shell)") {
-		t.Fatalf("expected go and shell to be reported as added, got %v", wrote)
+	if !strings.Contains(strings.Join(wrote, "\n"), "(added ansible, erlang, go, rust, shell)") {
+		t.Fatalf("expected the other languages to be reported as added, got %v", wrote)
 	}
 	langs, err := LoadLanguages()
 	if err != nil {
