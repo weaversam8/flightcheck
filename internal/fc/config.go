@@ -25,6 +25,9 @@ type RateLimitConfig struct {
 	IdleCapMinutes float64 `json:"idle_cap_minutes"`
 	// Minimum user turns (messages) since the previous rep.
 	MinTurns int `json:"min_turns"`
+	// In auto mode the agent can run a long time between user messages, so
+	// this many file edits also count as one turn. 0 disables it.
+	AutoEditsPerTurn int `json:"auto_edits_per_turn"`
 	// Hard ceiling on reps per local calendar day.
 	DailyCap int `json:"daily_cap"`
 }
@@ -62,6 +65,7 @@ func DefaultConfig() Config {
 			MaxActiveMinutes: 30,
 			IdleCapMinutes:   5,
 			MinTurns:         8,
+			AutoEditsPerTurn: 4,
 			DailyCap:         8,
 		},
 		SRS: SRSConfig{

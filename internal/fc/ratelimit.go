@@ -57,11 +57,26 @@ func (s *State) GateOpen(t time.Time, cfg RateLimitConfig) (bool, string) {
 	return true, "open"
 }
 
+// AutoEdit counts a file edit made in auto mode; every AutoEditsPerTurn of
+// them counts as one turn, so the turn gate advances without the agent
+// having to stop and hand control back.
+func (s *State) AutoEdit(cfg RateLimitConfig) {
+	if cfg.AutoEditsPerTurn <= 0 {
+		return
+	}
+	s.AutoEdits++
+	if s.AutoEdits >= cfg.AutoEditsPerTurn {
+		s.AutoEdits = 0
+		s.TurnsSinceRep++
+	}
+}
+
 // StartRep resets the gates when a rep is created (not when it's graded),
 // so the spacing is measured from when you were last interrupted.
 func (s *State) StartRep(t time.Time, cfg RateLimitConfig) {
 	s.ActiveSinceRep = 0
 	s.TurnsSinceRep = 0
+	s.AutoEdits = 0
 	s.TargetActive = pickTarget(cfg)
 	s.LastRepAt = t
 	if s.RepsDay != dayKey(t) {

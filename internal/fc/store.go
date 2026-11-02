@@ -19,6 +19,7 @@ type State struct {
 	ActiveSinceRep float64   `json:"active_minutes_since_rep"`
 	TargetActive   float64   `json:"target_active_minutes"`
 	TurnsSinceRep  int       `json:"turns_since_rep"`
+	AutoEdits      int       `json:"auto_edits_toward_turn"`
 	LastRepAt      time.Time `json:"last_rep_at"`
 	RepsDay        string    `json:"reps_day"`
 	RepsToday      int       `json:"reps_today"`

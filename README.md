@@ -129,7 +129,9 @@ A new rep needs all of:
 - **Active time**: a random 15-30 minutes since the last rep. Gaps between
   hook events count for at most 5 minutes, so you shouldn't be hit with a rep
   on both sides of an hour-long lunch break.
-- **Turns**: at least 8 of your messages since the last rep.
+- **Turns**: at least 8 turns since the last rep. Each message you send is
+  a turn. In auto mode, where the agent can work a long time between your
+  messages, every 4 file edits it makes also count as a turn.
 - **Daily cap**: fewer than 8 reps today.
 
 The gates reset when a rep starts. If a due block appears while a gate is
@@ -142,7 +144,8 @@ closed, the edit goes through normally.
 ```json
 {
   "rate_limit": { "min_active_minutes": 15, "max_active_minutes": 30,
-                  "idle_cap_minutes": 5, "min_turns": 8, "daily_cap": 8 },
+                  "idle_cap_minutes": 5, "min_turns": 8,
+                  "auto_edits_per_turn": 4, "daily_cap": 8 },
   "srs": { "initial_ease": 2.5, "min_ease": 1.3, "max_interval_days": 90,
            "fail_ease_penalty": 0.2, "fail_interval_days": 1,
            "placement_days": { "easy": 21, "good": 7, "hard": 2, "fail": 1 } },
@@ -162,6 +165,12 @@ hooks skip it. The classifier only runs when a rep could actually start
 
 **Edit size.** Edits longer than `max_lines` that hit a due block are
 refused with a request to split them, so a rep stays small.
+
+**Auto mode.** The `PostToolUse` hook counts the agent's file edits while
+Claude Code reports auto mode, and every `auto_edits_per_turn` of them
+counts as one turn. The agent keeps working without stopping until a rep
+starts. The edit that starts a rep doesn't count. Set it to `0` to count only
+your messages.
 
 **Pausing.** Set `FLIGHTCHECK_DISABLE=1` to turn every hook into a no-op.
 

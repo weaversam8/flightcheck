@@ -47,8 +47,8 @@ func TestReviewPlacementAndGrowth(t *testing.T) {
 
 func TestRateLimitIdleCapAndTurns(t *testing.T) {
 	cfg := DefaultConfig().RateLimit
+	defer func(f func() float64) { randFloat = f }(randFloat)
 	randFloat = func() float64 { return 0.5 } // target = 22.5 minutes
-	defer func() { randFloat = nil }()
 	s := &State{}
 	s.init()
 	t0 := time.Date(2026, 1, 1, 9, 0, 0, 0, time.Local)
@@ -242,6 +242,46 @@ func TestBashWriteDetection(t *testing.T) {
 	}
 }
 
+func TestAutoModeEditsCountAsTurns(t *testing.T) {
+	t.Setenv("FLIGHTCHECK_HOME", t.TempDir())
+	if _, err := seedDefaults(false); err != nil {
+		t.Fatal(err)
+	}
+	s := &session{t: t, id: "sess-auto"}
+	edit := func(mode string) {
+		s.hook("post-tool-use", map[string]any{
+			"tool_name": "Edit", "permission_mode": mode,
+			"tool_input": map[string]any{"file_path": "/tmp/x.go", "new_string": "x"},
+		})
+	}
+	turns := func() int { st, _ := LoadState(); return st.TurnsSinceRep }
+
+	for i := 0; i < 8; i++ {
+		edit("default")
+	}
+	if n := turns(); n != 0 {
+		t.Fatalf("edits outside auto mode shouldn't count, got %d turns", n)
+	}
+	for i := 0; i < 9; i++ {
+		edit("auto")
+	}
+	if n := turns(); n != 2 {
+		t.Fatalf("9 auto edits at 4 per turn should be 2 turns, got %d", n)
+	}
+	s.hook("user-prompt-submit", map[string]any{"prompt": "go", "permission_mode": "auto"})
+	if n := turns(); n != 3 {
+		t.Fatalf("user messages still count in auto mode, got %d turns", n)
+	}
+
+	os.WriteFile(ConfigPath(), []byte(`{"rate_limit": {"auto_edits_per_turn": 0}}`), 0o644)
+	for i := 0; i < 8; i++ {
+		edit("auto")
+	}
+	if n := turns(); n != 3 {
+		t.Fatalf("auto_edits_per_turn 0 should disable counting, got %d turns", n)
+	}
+}
+
 // ---- end-to-end: a simulated Claude Code session ----
 
 type session struct {
@@ -282,8 +322,8 @@ func TestEndToEndRep(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("FLIGHTCHECK_HOME", home)
 	t.Setenv("FLIGHTCHECK_FAKE_CLASSIFY", "with_chains,genserver")
+	defer func(f func() float64) { randFloat = f }(randFloat)
 	randFloat = func() float64 { return 0 } // 15-minute target
-	defer func() { randFloat = nil }()
 	if _, err := seedDefaults(false); err != nil {
 		t.Fatal(err)
 	}

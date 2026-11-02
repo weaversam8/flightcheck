@@ -21,6 +21,8 @@ type HookInput struct {
 	ToolInput     map[string]any `json:"tool_input"`
 	Prompt        string         `json:"prompt"`
 	Cwd           string         `json:"cwd"`
+	// "default", "acceptEdits", "plan", "auto", "bypassPermissions", "dontAsk".
+	PermissionMode string `json:"permission_mode"`
 }
 
 // RunHook handles one hook event. It fails open: any internal error is
@@ -296,6 +298,10 @@ func postToolUse(in HookInput) (any, error) {
 			"type": "fixup", "time": now(), "rep_id": rg.RepID,
 			"lines": countLines(editedCode(in.ToolName, in.ToolInput)),
 		})
+	}
+	// The stub edit that starts a rep doesn't count toward the next one.
+	if in.PermissionMode == "auto" && out == nil {
+		st.AutoEdit(cfg.RateLimit)
 	}
 	return out, SaveState(st)
 }
