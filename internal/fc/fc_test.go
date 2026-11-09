@@ -811,8 +811,11 @@ func TestEndToEndBeginnerRep(t *testing.T) {
 		t.Fatalf("history: %s", hist)
 	}
 	out.Reset()
-	if err := Status(&out); err != nil {
+	if err := Status(&out, "1.2.3"); err != nil {
 		t.Fatal(err)
+	}
+	if !strings.HasPrefix(out.String(), "flightcheck 1.2.3\n") {
+		t.Fatalf("status should start with the version:\n%s", out.String())
 	}
 	if !strings.Contains(out.String(), "go, beginner (.go): 13 blocks") || !strings.Contains(out.String(), "rust, intermediate") {
 		t.Fatalf("status:\n%s", out.String())

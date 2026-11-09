@@ -63,7 +63,7 @@ func run(args []string, stdin io.Reader, stdout io.Writer) error {
 		return fc.Uninstall(stdout, path, *purge)
 
 	case "status":
-		return fc.Status(stdout)
+		return fc.Status(stdout, version)
 
 	case "grade":
 		pos, flags := splitFlags(rest)

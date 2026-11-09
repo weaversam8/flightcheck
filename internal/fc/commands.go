@@ -158,8 +158,8 @@ func DeferRep(w io.Writer, id string) error {
 	return nil
 }
 
-// Status prints gates, pending reps, and what's due.
-func Status(w io.Writer) error {
+// Status prints the version, gates, pending reps, and what's due.
+func Status(w io.Writer, version string) error {
 	cfg, err := LoadConfig()
 	if err != nil {
 		return err
@@ -181,6 +181,7 @@ func Status(w io.Writer) error {
 		return err
 	}
 	t := now()
+	fmt.Fprintf(w, "flightcheck %s\n", version)
 	fmt.Fprintf(w, "flightcheck data: %s\n\n", Home())
 
 	open, why := st.GateOpen(t, cfg.RateLimit)
