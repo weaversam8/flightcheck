@@ -1,9 +1,59 @@
+---
+schema_version: 2
+---
 # Erlang building blocks
 
 Each `## id: title` section is one block. The description says what counts
 as *using* the block: the code being written has to exercise it, not just
 sit near it. Edit freely; ids are what the ledger tracks, so renaming an id
 resets its schedule.
+
+Blocks under `# Beginner` are for people who set this language to beginner
+during install, and are one small piece of syntax each. Blocks under
+`# Intermediate` are for everyone else.
+
+# Beginner
+
+## variable_binding: Variables and binding
+Binding a capitalized variable with `X = 1`, or using `_` for an ignored value.
+
+## expression_punctuation: Expression punctuation
+Correctly separating expressions with `,`, clauses with `;`, and ending a function with `.`.
+
+## atoms_numbers: Atoms, numbers, and booleans
+Writing atoms like `ok`, integers, floats, `true`/`false`, or simple comparisons such as `=:=` and `=/=`.
+
+## list_basics: List basics
+A list literal, `[H | T]` construction, or `length/1`.
+
+## head_tail: Head and tail matching
+Taking a list apart once with `[H | T] = List` or a one-level function head.
+
+## tuple_basics: Tuple basics
+Building a tuple such as `{ok, Value}` or reading it with one small match.
+
+## map_syntax: Map syntax
+A map literal `#{a => 1}`, updating with `M#{a := 2}`, or reading one key with `maps:get/2`.
+
+## function_basics: Function basics
+Writing a single-clause `name(Args) -> Body.` function.
+
+## export_basics: Module header
+Writing `-module(name).` or adding a `name/arity` entry to `-export([...]).`.
+
+## case_basics: case expressions
+A `case Expr of ... end` with a few clauses and a catch-all `_`.
+
+## if_basics: if expressions
+An `if` with guard conditions and a final `true ->` clause.
+
+## fun_basics: Anonymous fun basics
+Writing `fun(X) -> X + 1 end` and calling it, or passing it to one `lists:map/2`.
+
+## io_format: Printing with io:format
+`io:format/2` with control sequences such as `~p`, `~s`, and `~n`.
+
+# Intermediate
 
 ## pattern_matching: Pattern matching
 Destructuring with `=`, matching in function heads and `case` clauses, single-assignment variables, or matching against an already-bound variable.

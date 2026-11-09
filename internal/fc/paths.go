@@ -20,6 +20,7 @@ func Home() string {
 
 func ConfigPath() string    { return filepath.Join(Home(), "config.json") }
 func LanguagesPath() string { return filepath.Join(Home(), "languages.json") }
+func LevelsPath() string    { return filepath.Join(Home(), "levels.json") }
 func BlocksDir() string     { return filepath.Join(Home(), "blocks") }
 func StatePath() string     { return filepath.Join(Home(), "state.json") }
 func LedgerPath() string    { return filepath.Join(Home(), "ledger.json") }

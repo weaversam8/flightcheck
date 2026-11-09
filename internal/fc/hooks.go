@@ -92,6 +92,10 @@ func preToolUse(in HookInput) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	levels, err := LoadLevels()
+	if err != nil {
+		return nil, err
+	}
 
 	unlock, err := Lock()
 	if err != nil {
@@ -160,7 +164,8 @@ func preToolUse(in HookInput) (any, error) {
 		unlock()
 		return nil, err
 	}
-	due, err := DueBlocks(lang, L, ledger)
+	level := levels.For(lang)
+	due, err := DueBlocks(lang, L, level, ledger)
 	if err != nil {
 		done(nil)
 		return nil, err
@@ -233,10 +238,14 @@ func preToolUse(in HookInput) (any, error) {
 				"flightcheck: this change uses building blocks due for practice (%s). Make it without replace_all.", titles)))
 		}
 	}
-	if n := countLines(code); cfg.Rep.MaxLines > 0 && n > cfg.Rep.MaxLines {
+	maxLines := cfg.Rep.MaxLines
+	if level == Beginner {
+		maxLines = cfg.Rep.BeginnerMaxLines
+	}
+	if n := countLines(code); maxLines > 0 && n > maxLines {
 		return done(deny(fmt.Sprintf(
 			"flightcheck: this %d-line edit uses building blocks due for practice (%s). Split it so the part that uses them is its own edit of at most %d lines; flightcheck will hand that part to the user.",
-			n, titles, cfg.Rep.MaxLines)))
+			n, titles, maxLines)))
 	}
 
 	id := newRepID(t)

@@ -58,7 +58,7 @@ func run(args []string, stdin io.Reader, stdout io.Writer) error {
 			return err
 		}
 		if cmd == "install" {
-			return fc.Install(stdout, path, *force)
+			return fc.Install(stdout, stdin, stdinIsTerminal(), path, *force)
 		}
 		return fc.Uninstall(stdout, path, *purge)
 
@@ -109,6 +109,13 @@ func run(args []string, stdin io.Reader, stdout io.Writer) error {
 		return nil
 	}
 	return fmt.Errorf("unknown command %q\n\n%s", cmd, usage)
+}
+
+// stdinIsTerminal reports whether install can ask questions. /dev/null also
+// passes this check, but reads from it hit EOF and keep the current levels.
+func stdinIsTerminal() bool {
+	info, err := os.Stdin.Stat()
+	return err == nil && info.Mode()&os.ModeCharDevice != 0
 }
 
 // splitFlags lets flags appear after positional args (`grade ID good --blocks x`).

@@ -92,7 +92,12 @@ esac
 
 if [ "${FLIGHTCHECK_SETUP:-}" = 1 ]; then
   say ""
-  "$dir/flightcheck" install
+  # Under `curl | sh`, stdin is this script, so ask on the terminal instead.
+  if [ ! -t 0 ] && (: </dev/tty) 2>/dev/null; then
+    "$dir/flightcheck" install </dev/tty
+  else
+    "$dir/flightcheck" install
+  fi
 else
   say ""
   say "next: run '$dir/flightcheck install' to add the Claude Code hooks"

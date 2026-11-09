@@ -40,11 +40,11 @@ func (g Grade) quality() int {
 // Review applies one graded rep to a card using SM-2 (Wozniak, 1987),
 // adapted in two ways:
 //
-//  1. Placement: a block's first rep jumps straight to an interval set by
-//     the grade (placement_days), since most adopters already know the
-//     language and shouldn't walk the 1-day, 6-day ladder for basics.
-//  2. Lapses: a failed rep resets the interval to fail_interval_days and
-//     cuts ease by fail_ease_penalty; the next pass grows from there.
+//  1. Placement: a block's first rep gets an interval set by the grade
+//     (placement_hours), from a few hours up to two days, instead of SM-2's
+//     fixed 1-day, 6-day ladder.
+//  2. Lapses: a failed rep resets the interval to placement_hours["fail"]
+//     and cuts ease by fail_ease_penalty; the next pass grows from there.
 //
 // Ease follows the SM-2 update EF' = EF + (0.1 - (5-q)(0.08 + 0.02(5-q))),
 // i.e. +0.10 easy, 0 good, -0.14 hard, floored at min_ease. Intervals are
@@ -58,19 +58,19 @@ func Review(c *Card, g Grade, cfg SRSConfig, t time.Time) *Card {
 
 	if g == Fail {
 		out.Ease -= cfg.FailEasePenalty
-		out.IntervalDays = cfg.FailInterval
+		out.IntervalDays = cfg.PlacementHours[string(Fail)] / 24
 		out.Lapses++
 	} else {
 		out.Ease += 0.1 - (5-q)*(0.08+(5-q)*0.02)
 		if c.Reviews == 0 {
-			out.IntervalDays = cfg.PlacementDays[string(g)]
+			out.IntervalDays = cfg.PlacementHours[string(g)] / 24
 		} else {
 			// Grow from the old interval using the pre-update ease, as SM-2 does.
-			out.IntervalDays = math.Max(c.IntervalDays, 1) * c.Ease
+			out.IntervalDays = c.IntervalDays * c.Ease
 		}
 	}
 	out.Ease = math.Max(cfg.MinEase, math.Round(out.Ease*100)/100)
-	out.IntervalDays = math.Min(cfg.MaxIntervalDays, math.Round(out.IntervalDays*10)/10)
+	out.IntervalDays = math.Min(cfg.MaxIntervalDays, math.Round(out.IntervalDays*100)/100)
 	if out.IntervalDays <= 0 {
 		out.IntervalDays = 1
 	}

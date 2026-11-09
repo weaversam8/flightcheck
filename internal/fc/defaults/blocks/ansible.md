@@ -1,3 +1,6 @@
+---
+schema_version: 2
+---
 # Ansible building blocks
 
 Each `## id: title` section is one block. The description says what counts
@@ -8,6 +11,50 @@ resets its schedule.
 Every `.yml` and `.yaml` file reaches the classifier, Ansible or not, and it
 sees only these descriptions, not this note. So each one names Ansible
 explicitly, to keep other YAML (Kubernetes, CI config) from matching.
+
+Blocks under `# Beginner` are for people who set this language to beginner
+during install, and are one small piece of syntax each. Blocks under
+`# Intermediate` are for everyone else.
+
+# Beginner
+
+## play_skeleton: Play skeleton
+Writing the top of an Ansible play: a list item with `hosts:` and `tasks:`, and usually `name:`.
+
+## task_syntax: Task syntax
+Writing one named Ansible task: `- name:` followed by a module and its arguments as a YAML mapping.
+
+## module_args: Module arguments
+Setting a module's arguments under its key in an Ansible task, such as `path:`, `state:`, or `mode:` under `ansible.builtin.file`.
+
+## var_references: Referencing variables
+Using `"{{ var_name }}"` in an Ansible task value, quoted correctly when it starts the value.
+
+## vars_section: Defining variables
+A `vars:` section on an Ansible play or task with a few simple values.
+
+## debug_task: Debug output
+An `ansible.builtin.debug` task with `msg:` or `var:`.
+
+## when_basics: Simple when conditions
+One `when:` on an Ansible task comparing a variable or fact to a value.
+
+## loop_basics: Simple loops
+A `loop:` over a short list on an Ansible task, using `{{ item }}`.
+
+## register_basics: Basic register
+Adding `register:` to an Ansible task and reading the result in one later task.
+
+## notify_basics: Notify and handler pair
+A `notify:` on an Ansible task with one matching entry under `handlers:`.
+
+## become_basics: Using become
+Adding `become: true` to an Ansible play or task.
+
+## copy_task: Copy and file tasks
+A simple `ansible.builtin.copy` or `ansible.builtin.file` task with `src`/`dest` or `path`/`state`.
+
+# Intermediate
 
 ## plays: Ansible plays and playbooks
 Writing an Ansible play: `hosts`, `vars`, `pre_tasks`/`tasks`/`post_tasks`, `gather_facts`, or several plays in one playbook targeting different groups.

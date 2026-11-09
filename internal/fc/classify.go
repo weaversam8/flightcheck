@@ -68,7 +68,11 @@ func Classify(cfg ClassifierConfig, lang, file, code string, candidates []Block)
 func buildPrompt(lang, file, code string, candidates []Block) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "You label code with %s language building blocks. Do not use any tools.\n\n", lang)
-	b.WriteString("A block counts only if the code below substantively exercises it: someone writing this code by hand would need that skill. Incidental mentions, a single trivial call, or code merely near the construct do not count. When unsure, leave it out.\n\n")
+	if hasBeginnerBlock(candidates) {
+		b.WriteString("These are beginner skills. A block counts if someone writing the code below by hand would have to write that syntax themselves, even in one small, ordinary use. Incidental mentions, or code merely near the construct, do not count. When unsure, leave it out.\n\n")
+	} else {
+		b.WriteString("A block counts only if the code below substantively exercises it: someone writing this code by hand would need that skill. Incidental mentions, a single trivial call, or code merely near the construct do not count. When unsure, leave it out.\n\n")
+	}
 	b.WriteString("Candidate blocks:\n")
 	for _, bl := range candidates {
 		fmt.Fprintf(&b, "- %s (%s): %s\n", bl.ID, bl.Title, oneLine(bl.Description))
@@ -76,6 +80,15 @@ func buildPrompt(lang, file, code string, candidates []Block) string {
 	fmt.Fprintf(&b, "\nFile: %s\n<code>\n%s\n</code>\n\n", file, code)
 	b.WriteString(`Reply with only a JSON object, no prose: {"blocks": ["id", ...]}. Use [] if none apply.`)
 	return b.String()
+}
+
+func hasBeginnerBlock(blocks []Block) bool {
+	for _, b := range blocks {
+		if b.Level == Beginner {
+			return true
+		}
+	}
+	return false
 }
 
 func oneLine(s string) string { return strings.Join(strings.Fields(s), " ") }

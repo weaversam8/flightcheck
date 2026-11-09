@@ -1,9 +1,56 @@
+---
+schema_version: 2
+---
 # Elixir building blocks
 
 Each `## id: title` section is one block. The description says what counts
 as *using* the block: the code being written has to exercise it, not just
 sit near it. Edit freely; ids are what the ledger tracks, so renaming an id
 resets its schedule.
+
+Blocks under `# Beginner` are for people who set this language to beginner
+during install, and are one small piece of syntax each. Blocks under
+`# Intermediate` are for everyone else.
+
+# Beginner
+
+## bindings: Variable bindings
+Binding a value with `x = 1`, rebinding a name, or a one-level destructure like `{a, b} = pair`.
+
+## basic_values: Atoms, numbers, and booleans
+Writing atoms like `:ok`, numbers, booleans, or `nil` as values or simple comparisons.
+
+## string_interpolation: Strings and interpolation
+A double-quoted string with `#{value}`, or joining strings with `<>`.
+
+## list_basics: List basics
+A list literal, `hd`/`tl`, prepending with `[x | rest]`, or `length`.
+
+## tuple_results: Result tuples
+Returning or building `{:ok, value}` and `{:error, reason}`.
+
+## map_access: Map access
+A map literal `%{a: 1}`, reading `map.a` or `map[:a]`, or updating with `%{map | a: 2}`.
+
+## if_unless: if and unless
+A simple `if` or `unless` with `do`/`else`/`end`.
+
+## case_basics: case expressions
+A `case` on a value with a few clauses, including a catch-all `_`.
+
+## def_basics: Named functions
+Writing `def name(args) do ... end` or the one-line `def name(args), do: value` inside a module.
+
+## fn_basics: Anonymous function basics
+Writing `fn x -> x + 1 end` or `&(&1 + 1)` and calling it with `f.(x)`.
+
+## pipe_basics: Pipe basics
+A short `value |> f() |> g()` of two or three steps.
+
+## enum_basics: Basic Enum calls
+A single `Enum.map`, `Enum.filter`, or `Enum.sum` over a list.
+
+# Intermediate
 
 ## pattern_matching: Pattern matching
 Destructuring with `=`, matching in function heads or case clauses, and the pin operator `^`.

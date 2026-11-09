@@ -1,3 +1,6 @@
+---
+schema_version: 2
+---
 # Shell building blocks
 
 Each `## id: title` section is one block. The description says what counts
@@ -6,6 +9,53 @@ sit near it. Edit freely; ids are what the ledger tracks, so renaming an id
 resets its schedule.
 
 These cover POSIX sh and bash. Blocks that are bash-only say so.
+
+Blocks under `# Beginner` are for people who set this language to beginner
+during install, and are one small piece of syntax each. Blocks under
+`# Intermediate` are for everyone else.
+
+# Beginner
+
+## variable_assignment: Assigning variables
+Writing `name=value` with no spaces around `=`, or assigning a quoted string.
+
+## variable_references: Reading variables
+Using `"$name"` or `"${name}"`, including placing a variable inside a double-quoted string.
+
+## echo_output: Printing with echo
+Writing `echo` to show a message that includes literal text or a variable.
+
+## if_test: if statements
+An `if ...; then ... fi` with optional `else` or `elif`, using `[ ... ]` or a command as the condition.
+
+## compare_tests: String and number tests
+A single `[ "$a" = "$b" ]`, `[ -z "$a" ]`, `[ -n "$a" ]`, or numeric test such as `-eq` or `-gt`.
+
+## file_tests: File tests
+A test like `[ -f "$path" ]`, `[ -d "$dir" ]`, or `[ -e "$path" ]`.
+
+## for_list: for loops over a list
+Writing `for item in a b c; do ... done` or looping over `"$@"`.
+
+## while_basics: while loops
+A `while` loop with a simple condition and body, ended with `done`.
+
+## function_basics: Simple functions
+Defining `name() { ... }`, calling it, or reading its arguments through `$1` and `$2`.
+
+## script_args: Script arguments
+Reading `$1`, `$2`, `$#`, or `"$@"` in a script, without an option parser.
+
+## simple_redirects: Simple redirects
+Sending output to a file with `>` or `>>`, or reading a file with `<`.
+
+## command_capture: Capturing command output
+Assigning output to a variable with a single `x=$(command)`.
+
+## pipes: Pipes
+Connecting two or three commands with `|`, such as `grep foo file | wc -l`.
+
+# Intermediate
 
 ## quoting: Quoting and word splitting
 Choosing between single quotes, double quotes, and `$'...'`, quoting expansions to prevent word splitting and globbing, or `"$@"` vs `$*`.

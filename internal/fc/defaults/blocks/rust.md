@@ -1,9 +1,56 @@
+---
+schema_version: 2
+---
 # Rust building blocks
 
 Each `## id: title` section is one block. The description says what counts
 as *using* the block: the code being written has to exercise it, not just
 sit near it. Edit freely; ids are what the ledger tracks, so renaming an id
 resets its schedule.
+
+Blocks under `# Beginner` are for people who set this language to beginner
+during install, and are one small piece of syntax each. Blocks under
+`# Intermediate` are for everyone else.
+
+# Beginner
+
+## let_bindings: let bindings
+Declaring variables with `let`, `let mut`, a type annotation like `let x: i32 = 1`, or shadowing a name with a second `let`.
+
+## scalar_types: Scalar types and casts
+Using `i32`, `u64`, `f64`, `bool`, or `char` explicitly, or converting with `as`.
+
+## if_expressions: if expressions
+Writing `if`/`else`, including using `if` as a value: `let x = if a { 1 } else { 2 };`.
+
+## loop_basics: Loops
+Writing `for x in items`, `for i in 0..n`, `while`, or `loop` with `break`.
+
+## function_basics: Functions
+Declaring `fn` with typed parameters and a `-> T` return type, including returning the final expression without a semicolon.
+
+## reference_basics: Reference basics
+Passing or accepting `&T` or `&mut T` in a simple call, or dereferencing with `*`. Lifetime annotations do not count.
+
+## struct_basics: Struct basics
+Defining a small struct, building one with field syntax, or reading and assigning its fields.
+
+## match_basics: match basics
+A `match` on a simple value or small enum with a few arms and optionally `_`.
+
+## option_basics: Option basics
+Writing `Some(x)` or `None`, or handling an `Option` with `if let Some(x) = value`.
+
+## vec_basics: Vec basics
+Creating a vector with `vec![]` or `Vec::new()`, `push`, indexing, or `len`.
+
+## string_basics: String basics
+Creating text with `String::from` or `.to_string()`, passing `&str`, or combining values with `format!`.
+
+## printing_macros: Printing macros
+`println!` or `eprintln!` with `{}` or `{:?}` placeholders.
+
+# Intermediate
 
 ## ownership: Ownership and moves
 Code shaped by move semantics: deciding whether a function takes or returns ownership, `Clone` vs `Copy`, partial moves out of structs, or `std::mem::take`/`replace`. Passing a value along without any such decision does not count.

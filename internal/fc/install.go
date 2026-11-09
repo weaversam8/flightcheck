@@ -1,6 +1,7 @@
 package fc
 
 import (
+	"bufio"
 	"bytes"
 	"embed"
 	"encoding/json"
@@ -11,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -59,8 +61,9 @@ func SettingsPath(scope, explicit string) (string, error) {
 	return "", fmt.Errorf("unknown scope %q (want user, project, or local)", scope)
 }
 
-// Install seeds ~/.flightcheck and registers the hooks in a settings file.
-func Install(w io.Writer, settingsPath string, force bool) error {
+// Install seeds ~/.flightcheck, asks for a level per language when
+// interactive, and registers the hooks in a settings file.
+func Install(w io.Writer, in io.Reader, interactive bool, settingsPath string, force bool) error {
 	if err := EnsureDirs(); err != nil {
 		return err
 	}
@@ -70,6 +73,13 @@ func Install(w io.Writer, settingsPath string, force bool) error {
 	}
 	for _, s := range seeded {
 		fmt.Fprintf(w, "wrote %s\n", s)
+	}
+	if interactive {
+		if err := promptLevels(w, in); err != nil {
+			return err
+		}
+	} else {
+		fmt.Fprintf(w, "No terminal, so language levels were left as they are (intermediate unless set). Run `flightcheck install` in a terminal to change them.\n")
 	}
 	if err := editHooks(settingsPath, true); err != nil {
 		return err
@@ -93,6 +103,77 @@ func Uninstall(w io.Writer, settingsPath string, purge bool) error {
 		fmt.Fprintf(w, "deleted %s\n", Home())
 	} else {
 		fmt.Fprintf(w, "kept your ledger and history in %s (use --purge to delete)\n", Home())
+	}
+	return nil
+}
+
+// promptLevels asks for a level for each language that has beginner blocks.
+// Enter keeps the current level, and end of input keeps all remaining ones.
+func promptLevels(w io.Writer, in io.Reader) error {
+	langs, err := LoadLanguages()
+	if err != nil {
+		return err
+	}
+	levels, err := LoadLevels()
+	if err != nil {
+		return err
+	}
+	names := make([]string, 0, len(langs))
+	for n := range langs {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+
+	fmt.Fprintln(w, "\nHow comfortable are you writing each language by hand? Beginner practice is basic syntax in small edits; intermediate is larger multi-line changes. Re-run install to change these.")
+	r := bufio.NewReader(in)
+	changed, eof := false, false
+	for _, n := range names {
+		blocks, err := LoadBlocks(langs[n].BlocksFile)
+		if err != nil {
+			fmt.Fprintf(w, "%s: can't load blocks (%v), skipping\n", n, err)
+			continue
+		}
+		if !hasBeginnerBlock(blocks) {
+			fmt.Fprintf(w, "%s: no beginner blocks, using intermediate\n", n)
+			if levels[n] == Beginner {
+				delete(levels, n)
+				changed = true
+			}
+			continue
+		}
+		for !eof {
+			current := levels.For(n)
+			fmt.Fprintf(w, "%s - (b)eginner or (i)ntermediate? [%s]: ", n, current)
+			line, err := r.ReadString('\n')
+			if err != nil {
+				if !errors.Is(err, io.EOF) {
+					return err
+				}
+				eof = true
+				fmt.Fprintln(w)
+			}
+			answer := strings.ToLower(strings.TrimSpace(line))
+			var picked Level
+			switch answer {
+			case "":
+				picked = current
+			case "b", "beginner":
+				picked = Beginner
+			case "i", "intermediate":
+				picked = Intermediate
+			default:
+				fmt.Fprintf(w, "Please answer b or i.\n")
+				continue
+			}
+			if picked != current {
+				levels[n] = picked
+				changed = true
+			}
+			break
+		}
+	}
+	if changed {
+		return SaveLevels(levels)
 	}
 	return nil
 }
@@ -139,9 +220,103 @@ func seedDefaults(force bool) ([]string, error) {
 		if err != nil {
 			return err
 		}
-		return write(filepath.Join(BlocksDir(), filepath.Base(p)), data)
+		dest := filepath.Join(BlocksDir(), filepath.Base(p))
+		if !force && fileExists(dest) {
+			note, err := migrateBlocksFile(dest, data)
+			if note != "" {
+				wrote = append(wrote, note)
+			}
+			return err
+		}
+		return write(dest, data)
 	})
 	return wrote, err
+}
+
+// migrateBlocksFile upgrades an installed copy of a built-in blocks file to
+// the current schema. The user's blocks are kept verbatim; everything in a
+// schema 1 file is intermediate, and the default beginner blocks are added
+// above them. It returns a note describing the change, or "" if none.
+func migrateBlocksFile(path string, defaults []byte) (string, error) {
+	orig, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	if blocksSchema(string(orig)) >= blocksSchemaVersion {
+		return "", nil
+	}
+	userBlocks, err := parseBlockFile(bytes.NewReader(orig))
+	if err != nil {
+		return "", err
+	}
+	have := map[string]bool{}
+	for _, b := range userBlocks {
+		have[b.ID] = true
+	}
+	beginner, dropped := beginnerSection(string(defaults), have)
+	preamble, body := splitPreamble(string(orig))
+
+	var out strings.Builder
+	fmt.Fprintf(&out, "---\nschema_version: %d\n---\n", blocksSchemaVersion)
+	out.WriteString(strings.TrimRight(preamble, "\n"))
+	out.WriteString("\n\n# Beginner\n\n")
+	out.WriteString(beginner)
+	out.WriteString("# Intermediate\n\n")
+	out.WriteString(body)
+
+	backup := path + ".flightcheck.bak"
+	if err := os.WriteFile(backup, orig, 0o644); err != nil {
+		return "", err
+	}
+	if err := writeFileAtomic(path, []byte(out.String()), 0o644); err != nil {
+		return "", err
+	}
+	note := fmt.Sprintf("%s (added beginner blocks; backup at %s)", path, backup)
+	if len(dropped) > 0 {
+		note += fmt.Sprintf("; skipped beginner blocks whose ids you already use: %s", strings.Join(dropped, ", "))
+	}
+	return note, nil
+}
+
+// splitPreamble splits a blocks file at its first "## " heading.
+func splitPreamble(s string) (preamble, body string) {
+	if strings.HasPrefix(s, "## ") {
+		return "", s
+	}
+	if i := strings.Index(s, "\n## "); i >= 0 {
+		return s[:i+1], s[i+1:]
+	}
+	return s, ""
+}
+
+// beginnerSection returns the text of the "# Beginner" blocks in a default
+// file, leaving out any whose id is in skip, and the ids it left out.
+func beginnerSection(defaults string, skip map[string]bool) (string, []string) {
+	var out strings.Builder
+	var dropped []string
+	inSection, keep := false, false
+	for _, line := range strings.SplitAfter(defaults, "\n") {
+		if l, ok := levelHeading(strings.TrimRight(line, "\n")); ok {
+			inSection = l == Beginner
+			keep = false
+			continue
+		}
+		if !inSection {
+			continue
+		}
+		if strings.HasPrefix(line, "## ") {
+			id, _, _ := strings.Cut(strings.TrimPrefix(line, "## "), ":")
+			id = strings.TrimSpace(id)
+			keep = !skip[id]
+			if !keep {
+				dropped = append(dropped, id)
+			}
+		}
+		if keep {
+			out.WriteString(line)
+		}
+	}
+	return out.String(), dropped
 }
 
 // mergeLanguages appends default languages missing from an existing

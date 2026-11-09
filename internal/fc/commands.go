@@ -58,6 +58,10 @@ func GradeRep(w io.Writer, id string, g Grade, blocks []string) error {
 	if err != nil {
 		return err
 	}
+	levels, err := LoadLevels()
+	if err != nil {
+		return err
+	}
 	t := now()
 	fmt.Fprintf(w, "Recorded %s for rep %s:\n", g, id)
 	for _, b := range rep.Blocks {
@@ -73,7 +77,7 @@ func GradeRep(w io.Writer, id string, g Grade, blocks []string) error {
 		ledger.Cards[cardKey(rep.Language, b)] = after
 		entry := map[string]any{
 			"type": "review", "time": t, "rep_id": id, "language": rep.Language, "block": b,
-			"grade": g, "interval_after": after.IntervalDays, "ease_after": after.Ease,
+			"grade": g, "level": levels.For(rep.Language), "interval_after": after.IntervalDays, "ease_after": after.Ease,
 		}
 		if before != nil {
 			entry["interval_before"] = before.IntervalDays
@@ -81,7 +85,7 @@ func GradeRep(w io.Writer, id string, g Grade, blocks []string) error {
 			entry["days_since_review"] = t.Sub(before.LastReview).Hours() / 24
 		}
 		_ = appendJSONL(HistoryPath(), entry)
-		fmt.Fprintf(w, "  - %s: next due in %s (%s)\n", b, humanDays(after.IntervalDays), after.Due.Local().Format("Jan 2"))
+		fmt.Fprintf(w, "  - %s: next due in %s (%s)\n", b, humanDays(after.IntervalDays), dueLabel(after.Due, t))
 	}
 	if err := SaveLedger(ledger); err != nil {
 		return err
@@ -172,6 +176,10 @@ func Status(w io.Writer) error {
 	if err != nil {
 		return err
 	}
+	levels, err := LoadLevels()
+	if err != nil {
+		return err
+	}
 	t := now()
 	fmt.Fprintf(w, "flightcheck data: %s\n\n", Home())
 
@@ -210,6 +218,7 @@ func Status(w io.Writer) error {
 	sort.Strings(names)
 	for _, n := range names {
 		L := langs[n]
+		level := levels.For(n)
 		all, err := LoadBlocks(L.BlocksFile)
 		if err != nil {
 			fmt.Fprintf(w, "\n%s: can't load blocks (%v)\n", n, err)
@@ -226,7 +235,7 @@ func Status(w io.Writer) error {
 		}
 		var next []upcoming
 		for _, b := range all {
-			if skip[b.ID] {
+			if skip[b.ID] || b.Level != level {
 				continue
 			}
 			c := ledger.Card(n, b.ID)
@@ -240,8 +249,8 @@ func Status(w io.Writer) error {
 			}
 		}
 		sort.Slice(next, func(i, j int) bool { return next[i].due.Before(next[j].due) })
-		fmt.Fprintf(w, "\n%s (%s): %d blocks: %d new (due on first use), %d due, %d current\n",
-			n, strings.Join(L.Extensions, " "), len(fresh)+len(due)+len(next), len(fresh), len(due), len(next))
+		fmt.Fprintf(w, "\n%s, %s (%s): %d blocks: %d new (due on first use), %d due, %d current\n",
+			n, level, strings.Join(L.Extensions, " "), len(fresh)+len(due)+len(next), len(fresh), len(due), len(next))
 		if len(due) > 0 {
 			fmt.Fprintf(w, "  due: %s\n", strings.Join(due, ", "))
 		}
@@ -249,15 +258,27 @@ func Status(w io.Writer) error {
 			if i == 5 {
 				break
 			}
-			fmt.Fprintf(w, "  next: %-26s %s\n", u.id, u.due.Local().Format("Jan 2"))
+			fmt.Fprintf(w, "  next: %-26s %s\n", u.id, dueLabel(u.due, t))
 		}
 	}
 	return nil
 }
 
 func humanDays(d float64) string {
+	if d < 1 {
+		return fmt.Sprintf("%.0f hours", d*24)
+	}
 	if d < 1.5 {
 		return "1 day"
 	}
 	return fmt.Sprintf("%.0f days", d)
+}
+
+// dueLabel formats a due date, with the time of day when it's close enough
+// for that to matter.
+func dueLabel(due, t time.Time) string {
+	if due.Sub(t) < 48*time.Hour {
+		return due.Local().Format("Jan 2 15:04")
+	}
+	return due.Local().Format("Jan 2")
 }

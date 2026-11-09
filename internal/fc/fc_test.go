@@ -15,23 +15,24 @@ func TestReviewPlacementAndGrowth(t *testing.T) {
 	t0 := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 
 	c := Review(nil, Easy, cfg, t0)
-	if c.IntervalDays != 21 || c.Ease != 2.6 {
+	if c.IntervalDays != 2 || c.Ease != 2.6 {
 		t.Fatalf("easy placement: got %v days, ease %v", c.IntervalDays, c.Ease)
 	}
-	c = Review(c, Good, cfg, t0.Add(21*24*time.Hour))
-	if c.IntervalDays != 54.6 || c.Ease != 2.6 { // 21 * 2.6
+	c = Review(c, Good, cfg, t0.Add(48*time.Hour))
+	if c.IntervalDays != 5.2 || c.Ease != 2.6 { // 2 * 2.6
 		t.Fatalf("good after easy: got %v days, ease %v", c.IntervalDays, c.Ease)
 	}
-	c = Review(c, Good, cfg, t0)
-	if c.IntervalDays != 90 {
-		t.Fatalf("cap: got %v", c.IntervalDays)
+	long := *c
+	long.IntervalDays = 80
+	if capped := Review(&long, Good, cfg, t0); capped.IntervalDays != 90 {
+		t.Fatalf("cap: got %v", capped.IntervalDays)
 	}
 	c = Review(c, Fail, cfg, t0)
-	if c.IntervalDays != 1 || c.Ease != 2.4 || c.Lapses != 1 {
+	if c.IntervalDays != 0.17 || c.Ease != 2.4 || c.Lapses != 1 {
 		t.Fatalf("fail: got %v days, ease %v, lapses %d", c.IntervalDays, c.Ease, c.Lapses)
 	}
 	c = Review(c, Hard, cfg, t0)
-	if c.IntervalDays != 2.4 || c.Ease != 2.26 {
+	if c.IntervalDays != 0.41 || c.Ease != 2.26 { // 0.17 * 2.4, no 1-day floor
 		t.Fatalf("hard after fail: got %v days, ease %v", c.IntervalDays, c.Ease)
 	}
 	for i := 0; i < 20; i++ {
@@ -40,8 +41,15 @@ func TestReviewPlacementAndGrowth(t *testing.T) {
 	if c.Ease != cfg.MinEase {
 		t.Fatalf("ease floor: got %v", c.Ease)
 	}
-	if h := Review(nil, Hard, cfg, t0); h.IntervalDays != 2 {
+	h := Review(nil, Hard, cfg, t0)
+	if h.IntervalDays != 0.33 {
 		t.Fatalf("hard placement: got %v", h.IntervalDays)
+	}
+	if g := Review(h, Good, cfg, t0); g.IntervalDays != 0.78 { // 0.33 * 2.36
+		t.Fatalf("sub-day growth: got %v", g.IntervalDays)
+	}
+	if g := Review(nil, Good, cfg, t0); g.IntervalDays != 1 {
+		t.Fatalf("good placement: got %v", g.IntervalDays)
 	}
 }
 
@@ -152,8 +160,22 @@ func TestBlocksFilesParse(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(blocks) != want[name] {
-			t.Fatalf("want %d %s blocks, got %d", want[name], name, len(blocks))
+		var beginner, intermediate int
+		for _, bl := range blocks {
+			if bl.Level == Beginner {
+				beginner++
+			} else {
+				intermediate++
+			}
+		}
+		if intermediate != want[name] {
+			t.Fatalf("want %d intermediate %s blocks, got %d", want[name], name, intermediate)
+		}
+		if beginner < 10 || beginner > 14 {
+			t.Fatalf("%s: want 10-14 beginner blocks, got %d", name, beginner)
+		}
+		if v := blocksSchema(string(b)); v != blocksSchemaVersion {
+			t.Fatalf("%s: schema %d", name, v)
 		}
 		seen := map[string]bool{}
 		for _, bl := range blocks {
@@ -417,12 +439,12 @@ func TestEndToEndRep(t *testing.T) {
 	if err := GradeRep(&out, rep.ID, Good, []string{"with_chains"}); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), "with_chains: next due in 7 days") || !strings.Contains(out.String(), "genserver: not exercised") {
+	if !strings.Contains(out.String(), "with_chains: next due in 1 day") || !strings.Contains(out.String(), "genserver: not exercised") {
 		t.Fatalf("unexpected grade output:\n%s", out.String())
 	}
 
 	led, _ := LoadLedger()
-	if c := led.Card("elixir", "with_chains"); c == nil || c.IntervalDays != 7 {
+	if c := led.Card("elixir", "with_chains"); c == nil || c.IntervalDays != 1 {
 		t.Fatalf("with_chains card: %+v", c)
 	}
 	if led.Card("elixir", "genserver") != nil {
@@ -549,5 +571,250 @@ func TestDeferRestoresOriginal(t *testing.T) {
 	st, _ = LoadState()
 	if len(st.Pending) != 0 {
 		t.Fatal("pending not cleared")
+	}
+}
+
+func TestLoadBlocksLevels(t *testing.T) {
+	dir := t.TempDir()
+	write := func(name, body string) []Block {
+		p := filepath.Join(dir, name)
+		os.WriteFile(p, []byte(body), 0o644)
+		bs, err := LoadBlocks(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return bs
+	}
+	bs := write("a.md", "---\nschema_version: 2\n---\n# Title\n\n# Beginner\n## a: A\nfirst\n\n# intermediate\n## b: B\nsecond\n")
+	if len(bs) != 2 || bs[0].Level != Beginner || bs[1].Level != Intermediate || bs[0].Description != "first" {
+		t.Fatalf("got %+v", bs)
+	}
+	bs = write("old.md", "# Title\n\n## a: A\nold\n")
+	if len(bs) != 1 || bs[0].Level != Intermediate {
+		t.Fatalf("schema 1 should be intermediate: %+v", bs)
+	}
+	for in, want := range map[string]int{
+		"# T\n":                         1,
+		"---\nother: 1\n---\n":          1,
+		"---\nschema_version: 2\n---\n": 2,
+		"---\nschema_version: 9\n---\n": 9,
+		"---\nschema_version: x\n---\n": blocksSchemaVersion,
+	} {
+		if got := blocksSchema(in); got != want {
+			t.Fatalf("blocksSchema(%q) = %d, want %d", in, got, want)
+		}
+	}
+}
+
+func TestMigrateBlocks(t *testing.T) {
+	t.Setenv("FLIGHTCHECK_HOME", t.TempDir())
+	if err := EnsureDirs(); err != nil {
+		t.Fatal(err)
+	}
+	goPath := filepath.Join(BlocksDir(), "go.md")
+	old := "# My Go\n\nMy notes.\n\n## channels: Channels\nMy edited description.\n\n## variables: Mine\nI already had this id.\n"
+	os.WriteFile(goPath, []byte(old), 0o644)
+	custom := filepath.Join(BlocksDir(), "python.md")
+	customBody := "## comps: Comprehensions\nx\n"
+	os.WriteFile(custom, []byte(customBody), 0o644)
+	newer := filepath.Join(BlocksDir(), "rust.md")
+	newerBody := "---\nschema_version: 99\n---\n## x: X\ny\n"
+	os.WriteFile(newer, []byte(newerBody), 0o644)
+
+	wrote, err := seedDefaults(false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	report := strings.Join(wrote, "\n")
+	if !strings.Contains(report, "go.md (added beginner blocks") || !strings.Contains(report, "already use: variables") {
+		t.Fatalf("report: %s", report)
+	}
+	b, _ := os.ReadFile(goPath)
+	got := string(b)
+	if !strings.HasSuffix(got, "# Intermediate\n\n## channels: Channels\nMy edited description.\n\n## variables: Mine\nI already had this id.\n") {
+		t.Fatalf("user's blocks not kept verbatim:\n%s", got)
+	}
+	if !strings.Contains(got, "My notes.") || blocksSchema(got) != blocksSchemaVersion {
+		t.Fatalf("bad migrated file:\n%s", got)
+	}
+	bak, _ := os.ReadFile(goPath + ".flightcheck.bak")
+	if string(bak) != old {
+		t.Fatalf("backup: %q", bak)
+	}
+	bs, err := LoadBlocks("go.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	levels := map[string]Level{}
+	for _, bl := range bs {
+		if _, dup := levels[bl.ID]; dup {
+			t.Fatalf("duplicate id %s", bl.ID)
+		}
+		levels[bl.ID] = bl.Level
+	}
+	if levels["if_else"] != Beginner || levels["channels"] != Intermediate || levels["variables"] != Intermediate {
+		t.Fatalf("levels: %v", levels)
+	}
+
+	// Custom and newer-schema files are left alone.
+	if b, _ := os.ReadFile(custom); string(b) != customBody {
+		t.Fatalf("custom file changed: %q", b)
+	}
+	if b, _ := os.ReadFile(newer); string(b) != newerBody {
+		t.Fatalf("newer file changed: %q", b)
+	}
+
+	// A second run does nothing.
+	wrote, err = seedDefaults(false)
+	if err != nil || len(wrote) != 0 {
+		t.Fatalf("second seed: %v %v", wrote, err)
+	}
+	if after, _ := os.ReadFile(goPath); string(after) != got {
+		t.Fatal("second seed changed go.md")
+	}
+}
+
+func TestPromptLevels(t *testing.T) {
+	t.Setenv("FLIGHTCHECK_HOME", t.TempDir())
+	if _, err := seedDefaults(false); err != nil {
+		t.Fatal(err)
+	}
+	// A custom language with no beginner blocks isn't asked about. It sorts
+	// before every built-in, so it would otherwise take the first answer.
+	os.WriteFile(filepath.Join(BlocksDir(), "aaa.md"), []byte("## x: X\ny\n"), 0o644)
+	raw, _ := os.ReadFile(LanguagesPath())
+	kvs, _ := parseObject(raw)
+	kvs = append(kvs, kv{"aaa", json.RawMessage(`{"extensions":[".aaa"],"blocks_file":"aaa.md"}`)})
+	out, _ := encodeObject(kvs)
+	os.WriteFile(LanguagesPath(), out, 0o644)
+
+	var w bytes.Buffer
+	// aaa skipped; ansible invalid then b; elixir Enter; erlang "intermediate";
+	// go b; then EOF keeps rust and shell.
+	if err := promptLevels(&w, strings.NewReader("nope\nb\n\nintermediate\nbeginner\n")); err != nil {
+		t.Fatal(err)
+	}
+	ls, _ := LoadLevels()
+	if ls.For("ansible") != Beginner || ls.For("go") != Beginner || ls.For("elixir") != Intermediate ||
+		ls.For("erlang") != Intermediate || ls.For("rust") != Intermediate || ls.For("aaa") != Intermediate {
+		t.Fatalf("levels: %v", ls)
+	}
+	if !strings.Contains(w.String(), "aaa: no beginner blocks") || !strings.Contains(w.String(), "Please answer b or i.") {
+		t.Fatalf("output:\n%s", w.String())
+	}
+
+	// Enter keeps the current level, shown as the default.
+	w.Reset()
+	if err := promptLevels(&w, strings.NewReader("\n\n\n\n\n\n")); err != nil {
+		t.Fatal(err)
+	}
+	if ls, _ := LoadLevels(); ls.For("go") != Beginner {
+		t.Fatalf("Enter changed go: %v", ls)
+	}
+	if !strings.Contains(w.String(), "go - (b)eginner or (i)ntermediate? [beginner]:") {
+		t.Fatalf("output:\n%s", w.String())
+	}
+
+	// Non-interactive install leaves levels alone and never reads stdin.
+	settings := filepath.Join(t.TempDir(), "settings.json")
+	w.Reset()
+	if err := Install(&w, strings.NewReader("i\ni\ni\ni\ni\ni\n"), false, settings, false); err != nil {
+		t.Fatal(err)
+	}
+	if ls, _ := LoadLevels(); ls.For("go") != Beginner {
+		t.Fatalf("non-interactive install changed levels: %v", ls)
+	}
+	if !strings.Contains(w.String(), "No terminal") {
+		t.Fatalf("output:\n%s", w.String())
+	}
+}
+
+func TestLoadConfigLegacySRS(t *testing.T) {
+	t.Setenv("FLIGHTCHECK_HOME", t.TempDir())
+	if err := EnsureDirs(); err != nil {
+		t.Fatal(err)
+	}
+	load := func(srs string) map[string]float64 {
+		t.Helper()
+		os.WriteFile(ConfigPath(), []byte(`{"srs":`+srs+`}`), 0o644)
+		cfg, err := LoadConfig()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return cfg.SRS.PlacementHours
+	}
+	stock := `{"fail_interval_days":1,"placement_days":{"easy":21,"good":7,"hard":2,"fail":1}}`
+	if h := load(stock); h["easy"] != 48 || h["fail"] != 4 {
+		t.Fatalf("stock values should give new defaults: %v", h)
+	}
+	if h := load(`{"placement_days":{"easy":30,"good":7,"hard":2,"fail":1}}`); h["easy"] != 720 || h["good"] != 168 || h["fail"] != 24 {
+		t.Fatalf("custom days should convert: %v", h)
+	}
+	if h := load(`{"fail_interval_days":0.5}`); h["fail"] != 12 || h["easy"] != 48 {
+		t.Fatalf("custom fail interval should convert: %v", h)
+	}
+	if h := load(`{"placement_days":{"easy":30},"fail_interval_days":3,"placement_hours":{"easy":5}}`); h["easy"] != 5 || h["fail"] != 4 {
+		t.Fatalf("placement_hours should win: %v", h)
+	}
+}
+
+func TestEndToEndBeginnerRep(t *testing.T) {
+	t.Setenv("FLIGHTCHECK_HOME", t.TempDir())
+	// "channels" is intermediate, so it must never reach a beginner's rep.
+	t.Setenv("FLIGHTCHECK_FAKE_CLASSIFY", "variables,channels")
+	defer func(f func() float64) { randFloat = f }(randFloat)
+	randFloat = func() float64 { return 0 }
+	if _, err := seedDefaults(false); err != nil {
+		t.Fatal(err)
+	}
+	if err := SaveLevels(Levels{"go": Beginner}); err != nil {
+		t.Fatal(err)
+	}
+	s := &session{t: t, id: "sess-b", clk: time.Date(2026, 3, 2, 10, 0, 0, 0, time.Local)}
+	now = func() time.Time { return s.clk }
+	defer func() { now = time.Now }()
+	for i := 0; i < 8; i++ {
+		s.advance(2 * time.Minute)
+		s.hook("user-prompt-submit", map[string]any{"prompt": "go on"})
+	}
+	s.advance(time.Minute)
+
+	file := filepath.Join(t.TempDir(), "main.go")
+	os.WriteFile(file, []byte("package main\n\n// body\n"), 0o644)
+	edit := func(code string) map[string]any {
+		return map[string]any{"tool_name": "Edit", "tool_input": map[string]any{
+			"file_path": file, "old_string": "// body\n", "new_string": code,
+		}}
+	}
+	if d, _ := decision(s.hook("pre-tool-use", edit(strings.Repeat("x := 1\n", 11)))); d != "deny" {
+		t.Fatalf("11 lines should exceed the beginner limit, got %q", d)
+	}
+	d, upd := decision(s.hook("pre-tool-use", edit("x := 1\n")))
+	if d != "allow" || upd == nil {
+		t.Fatalf("expected a rep, got %q", d)
+	}
+	st, _ := LoadState()
+	rep := st.Pending["sess-b"]
+	if rep == nil || len(rep.Blocks) != 1 || rep.Blocks[0] != "variables" {
+		t.Fatalf("rep: %+v", rep)
+	}
+	os.WriteFile(file, []byte("package main\n\nx := 1\n"), 0o644)
+	var out bytes.Buffer
+	if err := GradeRep(&out, rep.ID, Hard, nil); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "variables: next due in 8 hours") {
+		t.Fatalf("grade output:\n%s", out.String())
+	}
+	hist, _ := os.ReadFile(HistoryPath())
+	if !strings.Contains(string(hist), `"level":"beginner"`) {
+		t.Fatalf("history: %s", hist)
+	}
+	out.Reset()
+	if err := Status(&out); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "go, beginner (.go): 13 blocks") || !strings.Contains(out.String(), "rust, intermediate") {
+		t.Fatalf("status:\n%s", out.String())
 	}
 }

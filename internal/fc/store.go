@@ -152,16 +152,26 @@ func writeJSON(path string, v any) error {
 	if err != nil {
 		return err
 	}
+	return writeFileAtomic(path, append(b, '\n'), 0o600)
+}
+
+// writeFileAtomic replaces path via a temp file and rename, so concurrent
+// readers (hooks in other sessions) never see a partial file.
+func writeFileAtomic(path string, data []byte, mode os.FileMode) error {
 	tmp, err := os.CreateTemp(filepath.Dir(path), ".tmp-*")
 	if err != nil {
 		return err
 	}
-	if _, err := tmp.Write(append(b, '\n')); err != nil {
+	if _, err := tmp.Write(data); err != nil {
 		tmp.Close()
 		os.Remove(tmp.Name())
 		return err
 	}
 	if err := tmp.Close(); err != nil {
+		os.Remove(tmp.Name())
+		return err
+	}
+	if err := os.Chmod(tmp.Name(), mode); err != nil {
 		os.Remove(tmp.Name())
 		return err
 	}

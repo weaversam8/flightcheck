@@ -60,6 +60,17 @@ languages to `languages.json`. Restart open Claude Code sessions afterward. Use
 `--scope project` to write `.claude/settings.json` in the current repo
 instead; everyone working in that repo will then need flightcheck installed.
 
+Install also asks whether you're a beginner or intermediate in each language
+and saves the answers to `~/.flightcheck/levels.json`. Press Enter to keep the
+level shown. With no terminal on stdin it skips the questions, and any language
+without a saved level is intermediate. Re-run `flightcheck install` whenever
+you want to change a level; flightcheck never promotes you on its own.
+
+Upgrading from a version without levels? Re-running install adds the beginner
+blocks to your installed copies of the built-in blocks files. Your existing
+blocks stay exactly as you left them, under `# Intermediate`, and the previous
+file is kept as `<name>.md.flightcheck.bak`.
+
 The binary is also installed under the short name `flchk`, so
 `flchk status` works anywhere `flightcheck status` does. The hooks and the
 agent always call it by its full path, so they work even if the install
@@ -111,11 +122,11 @@ removes the TODO and applies its edit. The block stays due and comes back later.
 
 Each block has a [SuperMemo-2][sm-2] card in `~/.flightcheck/ledger.json`:
 
-- **First rep places the block** by grade: easy → 21 days, good → 7,
-  hard → 2, fail → 1. Experienced developers clear the basics quickly.
-- **After that**, interval × ease (starting ease 2.5). Ease moves +0.10 on
-  easy, 0 on good, −0.14 on hard, −0.20 on fail, with a floor of 1.3. A fail
-  resets the interval to 1 day.
+- **First rep places the block** by grade: easy → 2 days, good → 1 day,
+  hard → 8 hours, fail → 4 hours. This is the same at both levels.
+- **After that**, interval × ease (starting ease 2.5), so reviews spread out as
+  you keep passing. Ease moves +0.10 on easy, 0 on good, −0.14 on hard, −0.20
+  on fail, with a floor of 1.3. A fail resets the interval to 4 hours.
 - **Intervals cap at 90 days**, so every block resurfaces at least quarterly.
 - **"Due" only matters when you touch it.** A due block you never write
   costs nothing.
@@ -150,9 +161,9 @@ closed, the edit goes through normally.
                   "idle_cap_minutes": 5, "min_turns": 8,
                   "auto_edits_per_turn": 4, "daily_cap": 8 },
   "srs": { "initial_ease": 2.5, "min_ease": 1.3, "max_interval_days": 90,
-           "fail_ease_penalty": 0.2, "fail_interval_days": 1,
-           "placement_days": { "easy": 21, "good": 7, "hard": 2, "fail": 1 } },
-  "rep": { "max_lines": 30 },
+           "fail_ease_penalty": 0.2,
+           "placement_hours": { "easy": 48, "good": 24, "hard": 8, "fail": 4 } },
+  "rep": { "max_lines": 30, "beginner_max_lines": 10 },
   "classifier": { "backend": "auto", "cli_command": "claude",
                   "cli_args": ["-p", "--model", "haiku", "--output-format", "json"],
                   "api_model": "claude-haiku-5-5", "timeout_seconds": 25 }
@@ -166,8 +177,14 @@ hooks skip it. The classifier only runs when a rep could actually start
 (tracked language, gate open, a block due). Every call is logged to
 `~/.flightcheck/classifier.log` for spot-checking.
 
-**Edit size.** Edits longer than `max_lines` that hit a due block are
-refused with a request to split them, so a rep stays small.
+**Edit size.** Edits longer than `max_lines` (`beginner_max_lines` for
+languages set to beginner) that hit a due block are refused with a request to
+split them, so a rep stays small.
+
+**Older configs.** `placement_days` and `fail_interval_days` are no longer
+used. If your `config.json` still has the old default values, they're ignored.
+If you changed them, they're converted to hours, unless you set
+`placement_hours`.
 
 **Auto mode.** The `PostToolUse` hook counts the agent's file edits while
 Claude Code reports auto mode, and every `auto_edits_per_turn` of them
@@ -192,6 +209,16 @@ Add an entry to `~/.flightcheck/languages.json` and a blocks file in
 ```
 
 ```markdown
+---
+schema_version: 2
+---
+# Beginner
+
+## list_literals: List literals
+Writing a list literal, indexing it, or calling `append` on it.
+
+# Intermediate
+
 ## comprehensions: Comprehensions
 List, dict, and set comprehensions, generator expressions, nested `for` clauses.
 
@@ -199,6 +226,12 @@ List, dict, and set comprehensions, generator expressions, nested `for` clauses.
 `with` blocks, writing `__enter__`/`__exit__`, `contextlib.contextmanager`.
 ```
 
+A `# Beginner` or `# Intermediate` heading applies to the blocks after it, and
+you practice only the blocks at your level for that language. Blocks before
+any level heading are intermediate. A language with no beginner blocks isn't
+offered a level during install.
+
+Ids must be unique across both sections of a file.
 Block ids are what the ledger tracks, so renaming an id resets its schedule.
 `skip_blocks` is for blocks that appear in nearly every edit (Elixir skips
 `pattern_matching` and `pipelines`).

@@ -33,18 +33,21 @@ type RateLimitConfig struct {
 }
 
 type SRSConfig struct {
-	InitialEase     float64            `json:"initial_ease"`
-	MinEase         float64            `json:"min_ease"`
-	MaxIntervalDays float64            `json:"max_interval_days"`
-	FailEasePenalty float64            `json:"fail_ease_penalty"`
-	FailInterval    float64            `json:"fail_interval_days"`
-	PlacementDays   map[string]float64 `json:"placement_days"`
+	InitialEase     float64 `json:"initial_ease"`
+	MinEase         float64 `json:"min_ease"`
+	MaxIntervalDays float64 `json:"max_interval_days"`
+	FailEasePenalty float64 `json:"fail_ease_penalty"`
+	// Hours until the next review after a block's first rep, by grade. The
+	// "fail" value also applies to every later failed rep.
+	PlacementHours map[string]float64 `json:"placement_hours"`
 }
 
 type RepConfig struct {
 	// Edits that hit a due block but are longer than this are refused with a
 	// request to split them, so a rep stays small.
 	MaxLines int `json:"max_lines"`
+	// The same limit for languages set to beginner.
+	BeginnerMaxLines int `json:"beginner_max_lines"`
 }
 
 type ClassifierConfig struct {
@@ -73,12 +76,11 @@ func DefaultConfig() Config {
 			MinEase:         1.3,
 			MaxIntervalDays: 90,
 			FailEasePenalty: 0.20,
-			FailInterval:    1,
-			PlacementDays: map[string]float64{
-				"easy": 21, "good": 7, "hard": 2, "fail": 1,
+			PlacementHours: map[string]float64{
+				"easy": 48, "good": 24, "hard": 8, "fail": 4,
 			},
 		},
-		Rep: RepConfig{MaxLines: 30},
+		Rep: RepConfig{MaxLines: 30, BeginnerMaxLines: 10},
 		Classifier: ClassifierConfig{
 			Backend:        "auto",
 			CLICommand:     "claude",
@@ -105,5 +107,49 @@ func LoadConfig() (Config, error) {
 	if err := json.Unmarshal(b, &cfg); err != nil {
 		return DefaultConfig(), err
 	}
+	if err := applyLegacySRS(b, &cfg); err != nil {
+		return DefaultConfig(), err
+	}
 	return cfg, nil
+}
+
+// legacyPlacementDays are the defaults that older versions of install wrote
+// into every config.json. Finding them there says nothing about what the
+// user wants, so they don't override the newer defaults.
+var legacyPlacementDays = map[string]float64{"easy": 21, "good": 7, "hard": 2, "fail": 1}
+
+const legacyFailIntervalDays = 1
+
+// applyLegacySRS carries over placement_days and fail_interval_days from
+// older config files, but only values the user changed. placement_hours
+// takes precedence over both.
+func applyLegacySRS(b []byte, cfg *Config) error {
+	var old struct {
+		SRS struct {
+			PlacementHours map[string]float64 `json:"placement_hours"`
+			PlacementDays  map[string]float64 `json:"placement_days"`
+			FailInterval   *float64           `json:"fail_interval_days"`
+		} `json:"srs"`
+	}
+	if err := json.Unmarshal(b, &old); err != nil {
+		return err
+	}
+	if len(old.SRS.PlacementHours) > 0 {
+		return nil
+	}
+	custom := false
+	for g, d := range old.SRS.PlacementDays {
+		if legacyPlacementDays[g] != d {
+			custom = true
+		}
+	}
+	if custom {
+		for g, d := range old.SRS.PlacementDays {
+			cfg.SRS.PlacementHours[g] = d * 24
+		}
+	}
+	if f := old.SRS.FailInterval; f != nil && *f != legacyFailIntervalDays {
+		cfg.SRS.PlacementHours["fail"] = *f * 24
+	}
+	return nil
 }
