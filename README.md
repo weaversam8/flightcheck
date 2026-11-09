@@ -73,16 +73,19 @@ directory isn't on the `PATH` that Claude Code sees.
    due blocks the new code actually uses. Haiku sees only the code and the
    block definitions, never the agent's commentary.
 
-2. **If any are due, the edit becomes a TODO.** Only the lines that change
-   are replaced (shared lines like a closing `end` stay). The agent's version
-   is saved in `~/.flightcheck/pending/`.
+2. **If any are due, the edit becomes a TODO.** Instead of applying the
+   change, flightcheck adds a TODO comment on its own line above the code
+   being changed and leaves the rest of the file as it was, so you can see
+   what you're rewriting. The agent's version is saved in
+   `~/.flightcheck/pending/`.
 
 3. **The agent coaches and stops.** A `PostToolUse` hook tells it to describe
    what the code must do, which blocks it exercises, and where the docs are,
    without writing the code. Edits are blocked until you reply, and the rep
    file stays blocked until it's graded.
 
-4. **You write it, then tell the agent you're done** in plain language. A
+4. **You write it, delete the TODO comment, then tell the agent you're done**
+   in plain language. A
    `UserPromptSubmit` hook reminds the agent of the pending rep and the
    grading rubric on each message.
 
@@ -93,7 +96,7 @@ directory isn't on the `PATH` that Claude Code sees.
    while the TODO marker is still in the file.
 
 Want to skip one? Tell the agent. It runs `flightcheck defer <id>`, which
-puts its original code back. The block stays due and comes back later.
+removes the TODO and applies its edit. The block stays due and comes back later.
 
 ### Grades
 

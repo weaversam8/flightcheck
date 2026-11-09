@@ -366,6 +366,9 @@ func TestEndToEndRep(t *testing.T) {
 	if !strings.Contains(stub, "TODO(flightcheck ") || !strings.HasPrefix(stub, "  # ") {
 		t.Fatalf("bad stub: %q", stub)
 	}
+	if !strings.HasSuffix(stub, "\n  # body\n") {
+		t.Fatalf("existing code should stay below the TODO: %q", stub)
+	}
 	// Simulate Claude Code applying the modified edit.
 	content, _ := os.ReadFile(file)
 	os.WriteFile(file, []byte(strings.Replace(string(content), "  # body\n", stub, 1)), 0o644)
@@ -440,6 +443,88 @@ func TestEndToEndRep(t *testing.T) {
 	}
 	if fileExists(pendingFile(rep.ID)) {
 		t.Fatal("pending file should be cleaned up")
+	}
+}
+
+func TestMidLineEditPutsTodoOnOwnLine(t *testing.T) {
+	t.Setenv("FLIGHTCHECK_HOME", t.TempDir())
+	t.Setenv("FLIGHTCHECK_FAKE_CLASSIFY", "with_chains")
+	defer func(f func() float64) { randFloat = f }(randFloat)
+	randFloat = func() float64 { return 0 }
+	if _, err := seedDefaults(false); err != nil {
+		t.Fatal(err)
+	}
+	s := &session{t: t, id: "sess-1", clk: time.Date(2026, 3, 2, 10, 0, 0, 0, time.Local)}
+	now = func() time.Time { return s.clk }
+	defer func() { now = time.Now }()
+
+	file := filepath.Join(t.TempDir(), "worker.ex")
+	os.WriteFile(file, []byte("def f do\n  x = foo(a)\nend\n"), 0o644)
+	s.hook("pre-tool-use", map[string]any{"tool_name": "Bash", "tool_input": map[string]any{"command": "true"}})
+	for i := 0; i < 8; i++ {
+		s.advance(2 * time.Minute)
+		s.hook("user-prompt-submit", map[string]any{"prompt": "keep going"})
+	}
+	s.advance(time.Minute)
+
+	d, upd := decision(s.hook("pre-tool-use", map[string]any{
+		"tool_name": "Edit",
+		"tool_input": map[string]any{
+			"file_path":  file,
+			"old_string": "foo(a)",
+			"new_string": "with {:ok, y} <- foo(a), do: y",
+		},
+	}))
+	if d != "allow" || upd == nil {
+		t.Fatalf("expected allow with updatedInput, got %q", d)
+	}
+	if upd["old_string"] != "  x = foo(a)" {
+		t.Fatalf("old_string not widened to line start: %q", upd["old_string"])
+	}
+	got := upd["new_string"].(string)
+	if !strings.HasPrefix(got, "  # TODO(flightcheck ") || !strings.HasSuffix(got, "\n  x = foo(a)") {
+		t.Fatalf("bad new_string: %q", got)
+	}
+	st, _ := LoadState()
+	if r := st.Pending["sess-1"].Restore; r != "  x = with {:ok, y} <- foo(a), do: y" {
+		t.Fatalf("bad restore: %q", r)
+	}
+}
+
+func TestLineLead(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "a.go")
+	os.WriteFile(file, []byte("func f() {\n\treturn foo(a)\n}\ndup dup\n"), 0o644)
+	if lead, ok := lineLead(file, "foo(a)"); !ok || lead != "\treturn " {
+		t.Fatalf("mid-line: %q %v", lead, ok)
+	}
+	if lead, ok := lineLead(file, "func f"); !ok || lead != "" {
+		t.Fatalf("first line: %q %v", lead, ok)
+	}
+	if _, ok := lineLead(file, "dup"); ok {
+		t.Fatal("ambiguous old_string should not match")
+	}
+	if _, ok := lineLead(file, "missing"); ok {
+		t.Fatal("missing old_string should not match")
+	}
+}
+
+func TestDeferAppliesEditOverKeptCode(t *testing.T) {
+	t.Setenv("FLIGHTCHECK_HOME", t.TempDir())
+	EnsureDirs()
+	file := filepath.Join(t.TempDir(), "a.ex")
+	stub := "  # TODO(flightcheck x2): stub\n  old code\n"
+	os.WriteFile(file, []byte("before\n"+stub+"after\n"), 0o644)
+	st := &State{}
+	st.init()
+	st.Pending["s"] = &Rep{ID: "x2", SessionID: "s", File: file, Stub: stub, Restore: "  new code\n", Original: "  new code\n"}
+	SaveState(st)
+	var out bytes.Buffer
+	if err := DeferRep(&out, "x2"); err != nil {
+		t.Fatal(err)
+	}
+	b, _ := os.ReadFile(file)
+	if string(b) != "before\n  new code\nafter\n" {
+		t.Fatalf("not restored: %q", b)
 	}
 }
 

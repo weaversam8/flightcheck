@@ -35,7 +35,7 @@ func GradeRep(w io.Writer, id string, g Grade, blocks []string) error {
 		return fmt.Errorf("can't read %s: %w (if the file is gone, use `%s defer %s`)", rep.File, err, SelfCommand(), id)
 	}
 	if strings.Contains(string(content), marker(id)) {
-		return fmt.Errorf("the %s marker is still in %s; the user needs to replace it with their own code before you grade (or use `%s defer %s`)",
+		return fmt.Errorf("the %s marker is still in %s; the user needs to write their code and delete that comment before you grade (or use `%s defer %s`)",
 			marker(id), rep.File, SelfCommand(), id)
 	}
 
@@ -129,7 +129,11 @@ func DeferRep(w io.Writer, id string) error {
 			if info != nil {
 				mode = info.Mode().Perm()
 			}
-			if err := os.WriteFile(rep.File, []byte(strings.Replace(s, rep.Stub, rep.Original, 1)), mode); err == nil {
+			restore := rep.Restore
+			if restore == "" {
+				restore = rep.Original
+			}
+			if err := os.WriteFile(rep.File, []byte(strings.Replace(s, rep.Stub, restore, 1)), mode); err == nil {
 				restored = true
 			}
 		}

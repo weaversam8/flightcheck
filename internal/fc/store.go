@@ -32,15 +32,20 @@ type State struct {
 }
 
 type Rep struct {
-	ID        string    `json:"id"`
-	SessionID string    `json:"session_id"`
-	Language  string    `json:"language"`
-	File      string    `json:"file"`
-	Tool      string    `json:"tool"`
-	Blocks    []string  `json:"blocks"`
-	OldString string    `json:"old_string,omitempty"`
-	Original  string    `json:"original"`
-	Stub      string    `json:"stub"`
+	ID        string   `json:"id"`
+	SessionID string   `json:"session_id"`
+	Language  string   `json:"language"`
+	File      string   `json:"file"`
+	Tool      string   `json:"tool"`
+	Blocks    []string `json:"blocks"`
+	OldString string   `json:"old_string,omitempty"`
+	Original  string   `json:"original"`
+	// Stub is the exact text the rep put in the file: the TODO comment plus,
+	// for Edit, the existing code it sits above.
+	Stub string `json:"stub"`
+	// Restore replaces Stub on defer to apply the agent's edit. Empty means
+	// use Original (Write reps, and reps created by older versions).
+	Restore   string    `json:"restore,omitempty"`
 	Created   time.Time `json:"created"`
 	Announced bool      `json:"announced"`
 	// User turns since the agent was told to coach; edits to *other* files

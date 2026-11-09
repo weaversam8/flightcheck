@@ -169,12 +169,13 @@ func preToolUse(in HookInput) (any, error) {
 		return done(nil)
 	}
 	code := editedCode(tool, in.ToolInput)
-	// For Edit, only the lines that actually change become the rep; lines
-	// shared with old_string (like a module's closing `end`) stay in place.
-	var keepPrefix, keepSuffix string
+	// For Edit, only the lines that actually change become the rep, and the
+	// TODO goes right above them, after any leading lines shared with
+	// old_string.
+	var keepPrefix string
 	if tool == "Edit" {
 		old, _ := in.ToolInput["old_string"].(string)
-		keepPrefix, code, keepSuffix = splitCommon(old, code)
+		keepPrefix, code, _ = splitCommon(old, code)
 	}
 	if strings.TrimSpace(code) == "" {
 		return done(nil) // pure deletions don't exercise anything
@@ -240,21 +241,42 @@ func preToolUse(in HookInput) (any, error) {
 
 	id := newRepID(t)
 	pre, suf := L.CommentFor(file)
-	stub := buildStub(code, pre, suf, id, titles)
 	newRep := &Rep{
 		ID: id, SessionID: in.SessionID, Language: lang, File: file, Tool: tool,
-		Blocks: hits, Original: code, Stub: stub, Created: t,
+		Blocks: hits, Original: code, Created: t,
 	}
 	updated := copyMap(in.ToolInput)
 	if tool == "Write" {
-		if !strings.HasSuffix(stub, "\n") {
-			stub += "\n"
-		}
-		newRep.Stub = stub
-		updated["content"] = stub
+		newRep.Stub = buildStub(code, pre, suf, id, titles)
+		updated["content"] = newRep.Stub
 	} else {
-		newRep.OldString, _ = in.ToolInput["old_string"].(string)
-		updated["new_string"] = keepPrefix + stub + keepSuffix
+		old, _ := in.ToolInput["old_string"].(string)
+		newStr, _ := in.ToolInput["new_string"].(string)
+		lead, ok := "", true
+		if old != "" {
+			lead, ok = lineLead(file, old)
+		}
+		if !ok {
+			return done(nil) // old_string doesn't match once; let Edit report it
+		}
+		// old_string may start mid-line, and a comment can't go there. Widen
+		// the match to the start of the line so the TODO gets its own line.
+		whole := lead + old
+		at := 0
+		if keepPrefix != "" {
+			at = len(lead) + len(keepPrefix)
+		}
+		kept := whole[at:]
+		indentFrom := kept
+		if strings.TrimSpace(kept) == "" {
+			indentFrom = code // pure insertion: nothing kept below the TODO
+		}
+		stub := buildStub(indentFrom, pre, suf, id, titles)
+		newRep.OldString = old
+		newRep.Stub = whole[:at] + stub + kept
+		newRep.Restore = lead + newStr
+		updated["old_string"] = whole
+		updated["new_string"] = newRep.Stub
 	}
 	st.Pending[in.SessionID] = newRep
 	st.StartRep(t, cfg.RateLimit)
@@ -340,7 +362,7 @@ func userPromptSubmit(in HookInput) (any, error) {
 // ---- messages to the agent ----
 
 func coachingText(rep *Rep) string {
-	return fmt.Sprintf(`flightcheck turned your last edit to %s into a practice rep for the user (rep %s). The file now has a TODO(flightcheck %s) marker where your code was. Building blocks being practiced: %s.
+	return fmt.Sprintf(`flightcheck turned your last edit to %s into a practice rep for the user (rep %s). Your change was not applied: the file now has a TODO(flightcheck %s) comment above the code you were changing, and the existing code is still there for the user to work from. Building blocks being practiced: %s.
 
 Now, in one short message to the user:
 - Describe what the missing code must do: inputs, outputs, behavior, and edge cases, based on your plan.
@@ -402,6 +424,8 @@ func pendingFile(id string) string { return filepath.Join(PendingDir(), id+".jso
 
 func marker(id string) string { return "TODO(flightcheck " + id + ")" }
 
+// buildStub renders the TODO comment as one whole line, indented to match the
+// first non-blank line of code.
 func buildStub(code, pre, suf, id, titles string) string {
 	indent := ""
 	for _, line := range strings.Split(code, "\n") {
@@ -410,15 +434,27 @@ func buildStub(code, pre, suf, id, titles string) string {
 			break
 		}
 	}
-	s := fmt.Sprintf("%s%s %s: write this part yourself. Practice: %s. Tell the agent when you're done.",
+	s := fmt.Sprintf("%s%s %s: write this part yourself. Practice: %s. Delete this comment and tell the agent when you're done.",
 		indent, pre, marker(id), titles)
 	if suf != "" {
 		s += " " + suf
 	}
-	if strings.HasSuffix(code, "\n") {
-		s += "\n"
+	return s + "\n"
+}
+
+// lineLead returns the text between the start of the line and the single
+// occurrence of old in file. ok is false unless old occurs exactly once.
+func lineLead(file, old string) (lead string, ok bool) {
+	b, err := os.ReadFile(file)
+	if err != nil {
+		return "", false
 	}
-	return s
+	src := string(b)
+	if strings.Count(src, old) != 1 {
+		return "", false
+	}
+	i := strings.Index(src, old)
+	return src[strings.LastIndex(src[:i], "\n")+1 : i], true
 }
 
 // splitCommon splits newS into (prefix, middle, suffix), where prefix and
